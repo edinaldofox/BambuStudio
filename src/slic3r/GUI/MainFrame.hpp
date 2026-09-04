@@ -129,6 +129,7 @@ class MainFrame : public DPIFrame
     bool can_export_supports() const;
     bool can_export_gcode() const;
     bool can_export_all_gcode() const;
+    bool can_export_sla() const;
     bool can_print_3mf() const;
     bool can_send_gcode() const;
     //bool can_export_gcode_sd() const;

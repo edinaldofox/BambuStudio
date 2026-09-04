@@ -1,0 +1,23 @@
+{
+    "type": "sla_material",
+    "setting_id": "GSRM_GENERIC_001",
+    "name": "Generic Standard Resin @Generic SL1 MSLA",
+    "from": "system",
+    "instantiation": "true",
+    "material_colour": "#29B2B2",
+    "material_type": "Tough",
+    "initial_layer_height": "0.3",
+    "bottle_cost": "0",
+    "bottle_volume": "1000",
+    "bottle_weight": "1000",
+    "material_density": "1.1",
+    "exposure_time": "10",
+    "initial_exposure_time": "15",
+    "material_correction": ["1", "1", "1"],
+    "material_correction_x": "1",
+    "material_correction_y": "1",
+    "material_correction_z": "1",
+    "material_vendor": "Generic",
+    "material_print_speed": "50",
+    "compatible_printers": ["Generic SL1-compatible MSLA 6.08in (Calibration)"]
+}

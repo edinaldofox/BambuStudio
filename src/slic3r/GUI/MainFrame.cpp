@@ -1683,9 +1683,11 @@ void MainFrame::create_preset_tabs()
     add_created_tab(new TabPrintPart(m_param_panel), "cog");
     add_created_tab(new TabPrintLayer(m_param_panel), "cog");
     add_created_tab(new TabFilament(m_param_dialog->panel()), "spool");
-    /* BBS work around to avoid appearance bug */
-    //add_created_tab(new TabSLAPrint(m_param_panel));
-    //add_created_tab(new TabSLAMaterial(m_param_panel));
+    // SLA tabs are backed by the native C++ SLAPrint pipeline. They must be
+    // present for an installed resin printer to expose its process and material
+    // settings instead of falling back to the FFF-only panels.
+    add_created_tab(new TabSLAPrint(m_param_panel), "cog");
+    add_created_tab(new TabSLAMaterial(m_param_panel), "spool");
     add_created_tab(new TabPrinter(m_param_dialog->panel()), "printer");
 
     m_param_panel->rebuild_panels();
@@ -1806,6 +1808,11 @@ bool MainFrame::can_export_gcode() const
     if (m_plater == nullptr)
         return false;
 
+    // Bambu's plate-sliced-file actions produce FFF G-code archives. SLA is
+    // exported through Plater::export_gcode(), which selects an SLA archive.
+    if (m_plater->printer_technology() != ptFFF)
+        return false;
+
     if (m_plater->model().objects.empty())
         return false;
 
@@ -1826,6 +1833,9 @@ bool MainFrame::can_export_all_gcode() const
     if (m_plater == nullptr)
         return false;
 
+    if (m_plater->printer_technology() != ptFFF)
+        return false;
+
     if (m_plater->model().objects.empty())
         return false;
 
@@ -1835,6 +1845,15 @@ bool MainFrame::can_export_all_gcode() const
     // TODO:: add other filters
     PartPlateList& part_plate_list = m_plater->get_partplate_list();
     return part_plate_list.is_all_slice_results_ready_for_print();
+}
+
+bool MainFrame::can_export_sla() const
+{
+    return m_plater != nullptr &&
+           m_plater->printer_technology() == ptSLA &&
+           !m_plater->model().objects.empty() &&
+           !m_plater->is_export_gcode_scheduled() &&
+           m_plater->sla_print().finished();
 }
 
 bool MainFrame::can_print_3mf() const
@@ -3032,9 +3051,10 @@ void MainFrame::init_menubar_as_editor()
             [this](wxCommandEvent&) { if (m_plater) wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_EXPORT_ALL_SLICED_FILE)); }, "menu_export_sliced_file", nullptr,
             [this]() {return can_export_all_gcode(); }, this);
 
-        append_menu_item(export_menu, wxID_ANY, _L("Export G-code") + dots/* + "\tCtrl+G"*/, _L("Export current plate as G-code"),
+        m_changeable_menu_items.resize(miPrinterTab + 1, nullptr);
+        m_changeable_menu_items[miExport] = append_menu_item(export_menu, wxID_ANY, _L("Export G-code") + dots/* + "\tCtrl+G"*/, _L("Export current plate as G-code"),
             [this](wxCommandEvent&) { if (m_plater) m_plater->export_gcode(false); }, "menu_export_gcode", nullptr,
-            [this]() {return can_export_gcode(); }, this);
+            [this]() {return can_export_gcode() || can_export_sla(); }, this);
 
         append_menu_item(export_menu, wxID_ANY, _L("Export toolpaths as OBJ") + dots, _L("Export toolpaths as OBJ"),
             [this](wxCommandEvent&) { if (m_plater != nullptr) m_plater->export_toolpaths_to_obj(); }, "menu_export_toolpaths", nullptr,
@@ -4576,6 +4596,12 @@ void MainFrame::technology_changed()
     PrinterTechnology pt = plater()->printer_technology();
     if (int id = m_menubar->FindMenu(pt == ptFFF ? _omitL("Material Settings") : _L("Filament Settings")); id != wxNOT_FOUND)
         m_menubar->SetMenuLabel(id, pt == ptSLA ? _omitL("Material Settings") : _L("Filament Settings"));
+
+    if (m_changeable_menu_items.size() > miExport && m_changeable_menu_items[miExport] != nullptr) {
+        wxMenuItem *export_item = m_changeable_menu_items[miExport];
+        export_item->SetItemLabel(pt == ptSLA ? _L("Export SLA file") + dots : _L("Export G-code") + dots);
+        export_item->SetHelp(pt == ptSLA ? _L("Export current plate as an SLA file") : _L("Export current plate as G-code"));
+    }
 }
 
 

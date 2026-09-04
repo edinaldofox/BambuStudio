@@ -1,0 +1,12 @@
+{
+    "type": "machine_model",
+    "name": "Generic SL1-compatible MSLA 6.08in (Calibration)",
+    "model_id": "Generic-MSLA-6.08in",
+    "nozzle_diameter": "0.05",
+    "machine_tech": "SLA",
+    "family": "Generic Resin",
+    "bed_model": "",
+    "bed_texture": "",
+    "hotend_model": "",
+    "default_materials": "Generic Standard Resin @Generic SL1 MSLA"
+}

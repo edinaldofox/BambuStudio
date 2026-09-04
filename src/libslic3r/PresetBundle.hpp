@@ -314,7 +314,9 @@ public:
     std::map<std::string, SupportRecommendedParams> support_recommended_params_map;
 
     bool                        has_defauls_only() const
-        { return prints.has_defaults_only() && filaments.has_defaults_only() && printers.has_defaults_only(); }
+        { return prints.has_defaults_only() && sla_prints.has_defaults_only() &&
+                 filaments.has_defaults_only() && sla_materials.has_defaults_only() &&
+                 printers.has_defaults_only(); }
 
     DynamicPrintConfig          full_config(bool apply_extruder = true, std::optional<std::vector<int>>filament_maps = std::nullopt, std::optional<std::vector<int>> filament_volume_maps = std::nullopt) const;
     // full_config() with the some "useless" config removed.

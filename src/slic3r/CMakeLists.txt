@@ -830,13 +830,25 @@ if (UNIX AND NOT APPLE)
         if (WEBKIT2GTK_4_0_FOUND)
             target_compile_definitions(libslic3r_gui PRIVATE BBL_WEBKITGTK_4_0)
         else ()
-            message(FATAL_ERROR "Neither webkit2gtk-4.1 nor webkit2gtk-4.0 was found.")
+            message(FATAL_ERROR
+                "The desktop webview requires WebKitGTK. Install the development package "
+                "that provides webkit2gtk-4.1 or webkit2gtk-4.0 (for Ubuntu/Debian: "
+                "libwebkit2gtk-4.1-dev), then verify it with: "
+                "pkg-config --modversion webkit2gtk-4.1")
         endif ()
     endif ()
 
     # We add GStreamer for bambu:/// support.
-    pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
-    pkg_check_modules(GST_BASE REQUIRED gstreamer-base-1.0)
+    pkg_check_modules(GSTREAMER QUIET gstreamer-1.0)
+    pkg_check_modules(GST_BASE QUIET gstreamer-base-1.0)
+    if (NOT GSTREAMER_FOUND OR NOT GST_BASE_FOUND)
+        message(FATAL_ERROR
+            "The bambu:/// desktop integration requires the GStreamer development SDK. "
+            "Install packages providing gstreamer-1.0 and gstreamer-base-1.0 "
+            "(for Ubuntu/Debian: libgstreamer1.0-dev "
+            "libgstreamer-plugins-base1.0-dev), then verify them with: "
+            "pkg-config --modversion gstreamer-1.0 gstreamer-base-1.0")
+    endif ()
     target_link_libraries(libslic3r_gui ${GSTREAMER_LIBRARIES} ${GST_BASE_LIBRARIES})
     target_include_directories(libslic3r_gui PRIVATE ${GSTREAMER_INCLUDE_DIRS} ${GST_BASE_INCLUDE_DIRS})
 endif ()

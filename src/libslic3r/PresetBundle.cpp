@@ -403,20 +403,22 @@ PresetBundle::PresetBundle()
     this->sla_prints.default_preset().compatible_printers_condition();
     this->sla_prints.default_preset().inherits();
 
-    //this->printers.add_default_preset(Preset::sla_printer_options(), static_cast<const SLAMaterialConfig &>(SLAFullPrintConfig::defaults()), "- default SLA -");
-    //this->printers.preset(1).printer_technology_ref() = ptSLA;
-    for (size_t i = 0; i < 1; ++i) {
+    // The profile loader selects the printer defaults from printer_technology.
+    // Keep an SLA default alongside the FFF one so resin profiles never inherit
+    // FFF-only options.
+    this->printers.add_default_preset(Preset::sla_printer_options(), static_cast<const SLAPrinterConfig &>(SLAFullPrintConfig::defaults()), "- default SLA -");
+    this->printers.default_preset(1).printer_technology_ref() = ptSLA;
+    for (size_t i = 0; i < 2; ++i) {
         // The following ugly switch is to avoid printers.preset(0) to return the edited instance, as the 0th default is the current one.
         Preset &preset = this->printers.default_preset(i);
         for (const char *key : {"printer_settings_id", "printer_model", "printer_variant","thumbnail_size"}) preset.config.optptr(key, true);
-        //if (i == 0) {
+        if (i == 0) {
             preset.config.optptr("default_print_profile", true);
             preset.config.option<ConfigOptionStrings>("default_filament_profile", true);
-        //} else {
-        //    preset.config.optptr("default_sla_print_profile", true);
-        //    preset.config.optptr("default_sla_material_profile", true);
-        //}
-        // default_sla_material_profile
+        } else {
+            preset.config.optptr("default_sla_print_profile", true);
+            preset.config.optptr("default_sla_material_profile", true);
+        }
         preset.inherits();
     }
 
@@ -540,7 +542,9 @@ void PresetBundle::copy_files(const std::string& from)
         // Store the print/filament/printer presets at the same location as the upstream Slic3r.
         from_data_dir / PRESET_PRINT_NAME,
         from_data_dir / PRESET_FILAMENT_NAME,
-        from_data_dir / PRESET_PRINTER_NAME
+        from_data_dir / PRESET_PRINTER_NAME,
+        from_data_dir / PRESET_SLA_PRINT_NAME,
+        from_data_dir / PRESET_SLA_MATERIALS_NAME
     };
     // copy recursively all files
     //BBS: change directoties by design
@@ -596,11 +600,17 @@ Preset* PresetBundle::get_preset_differed_for_save(Preset& preset)
         case Preset::TYPE_PRINT:
             preset_collection = &(this->prints);
             break;
+        case Preset::TYPE_SLA_PRINT:
+            preset_collection = &(this->sla_prints);
+            break;
         case Preset::TYPE_PRINTER:
             preset_collection = &(this->printers);
             break;
         case Preset::TYPE_FILAMENT:
             preset_collection = &(this->filaments);
+            break;
+        case Preset::TYPE_SLA_MATERIAL:
+            preset_collection = &(this->sla_materials);
             break;
         default:
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" invalid type %1%, return directly")%preset.type;
@@ -618,11 +628,17 @@ int PresetBundle::get_differed_values_to_update(Preset& preset, std::map<std::st
         case Preset::TYPE_PRINT:
             preset_collection = &(this->prints);
             break;
+        case Preset::TYPE_SLA_PRINT:
+            preset_collection = &(this->sla_prints);
+            break;
         case Preset::TYPE_PRINTER:
             preset_collection = &(this->printers);
             break;
         case Preset::TYPE_FILAMENT:
             preset_collection = &(this->filaments);
+            break;
+        case Preset::TYPE_SLA_MATERIAL:
+            preset_collection = &(this->sla_materials);
             break;
         default:
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" invalid type %1%, return directly")%preset.type;
@@ -709,7 +725,17 @@ PresetsConfigSubstitutions PresetBundle::load_project_embedded_presets(std::vect
         errors_cummulative += err.what();
     }
     try {
+        this->sla_prints.load_project_embedded_presets(project_presets, PRESET_SLA_PRINT_NAME, substitutions, substitution_rule);
+    } catch (const std::runtime_error &err) {
+        errors_cummulative += err.what();
+    }
+    try {
         this->filaments.load_project_embedded_presets(project_presets, PRESET_FILAMENT_NAME, substitutions, substitution_rule);
+    } catch (const std::runtime_error &err) {
+        errors_cummulative += err.what();
+    }
+    try {
+        this->sla_materials.load_project_embedded_presets(project_presets, PRESET_SLA_MATERIALS_NAME, substitutions, substitution_rule);
     } catch (const std::runtime_error &err) {
         errors_cummulative += err.what();
     }
@@ -737,9 +763,16 @@ std::vector<Preset*> PresetBundle::get_current_project_embedded_presets()
 
     project_presets = this->prints.get_project_embedded_presets();
 
+    auto sla_print_presets = this->sla_prints.get_project_embedded_presets();
+    if (!sla_print_presets.empty())
+        std::copy(sla_print_presets.begin(), sla_print_presets.end(), std::back_inserter(project_presets));
+
     auto filament_presets = this->filaments.get_project_embedded_presets();
     if (!filament_presets.empty())
         std::copy(filament_presets.begin(), filament_presets.end(), std::back_inserter(project_presets));
+    auto sla_material_presets = this->sla_materials.get_project_embedded_presets();
+    if (!sla_material_presets.empty())
+        std::copy(sla_material_presets.begin(), sla_material_presets.end(), std::back_inserter(project_presets));
     auto printer_presets = this->printers.get_project_embedded_presets();
     if (!printer_presets.empty())
         std::copy(printer_presets.begin(), printer_presets.end(), std::back_inserter(project_presets));
@@ -2017,7 +2050,12 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
     std::string initial_print_profile_name        = remove_ini_suffix(config.get("presets", PRESET_PRINT_NAME));
     std::string initial_sla_print_profile_name    = remove_ini_suffix(config.get("presets", PRESET_SLA_PRINT_NAME));
     std::string initial_filament_profile_name     = remove_ini_suffix(config.get("presets", PRESET_FILAMENT_NAME));
-    std::string initial_sla_material_profile_name = remove_ini_suffix(config.get("presets", PRESET_SLA_MATERIALS_NAME));
+    // The application configuration has historically used the singular
+    // "sla_material" key (as do 3MF preset bundles). Keep accepting the
+    // plural directory name written by early development builds.
+    const char *sla_material_key = config.has("presets", "sla_material") ?
+        "sla_material" : PRESET_SLA_MATERIALS_NAME;
+    std::string initial_sla_material_profile_name = remove_ini_suffix(config.get("presets", sla_material_key));
 	std::string initial_printer_profile_name      = remove_ini_suffix(config.get("presets", PRESET_PRINTER_NAME));
 
     // Activate print / filament / printer profiles from either the config,
@@ -2354,11 +2392,12 @@ void PresetBundle::export_selections(AppConfig &config)
     }
 
     // BBS
-    //config.set("presets", "sla_print",    sla_prints.get_selected_preset_name());
-    //config.set("presets", "sla_material", sla_materials.get_selected_preset_name());
+    config.set("presets", "sla_print",    sla_prints.get_selected_preset_name());
+    config.set("presets", "sla_material", sla_materials.get_selected_preset_name());
     //config.set("presets", "physical_printer", physical_printers.get_selected_full_printer_name());
     //BBS: add config related log
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": printer %1%, print %2%, filaments[0] %3% ")%printers.get_selected_preset_name() % prints.get_selected_preset_name() %filament_presets[0];
+    const std::string first_filament = filament_presets.empty() ? std::string() : filament_presets.front();
+    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": printer %1%, print %2%, filaments[0] %3% ")%printers.get_selected_preset_name() % prints.get_selected_preset_name() %first_filament;
 }
 
 // BBS
@@ -4635,7 +4674,9 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_vendor_configs_
     std::string root_file = path + "/" + vendor_name + ".json";
     std::vector<std::pair<std::string, std::string>> machine_model_subfiles;
     std::vector<std::pair<std::string, std::string>> process_subfiles;
+    std::vector<std::pair<std::string, std::string>> sla_process_subfiles;
     std::vector<std::pair<std::string, std::string>> filament_subfiles;
+    std::vector<std::pair<std::string, std::string>> sla_material_subfiles;
     std::vector<std::pair<std::string, std::string>> machine_subfiles;
     auto get_name_and_subpath = [](json::iterator& it, std::vector<std::pair<std::string, std::string>>& subfile_map) {
         if (it.value().is_array()) {
@@ -4701,9 +4742,15 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_vendor_configs_
                 //get process list
                 get_name_and_subpath(it, process_subfiles);
             }
+            else if (boost::iequals(it.key(), BBL_JSON_KEY_SLA_PROCESS_LIST)) {
+                get_name_and_subpath(it, sla_process_subfiles);
+            }
             else if (boost::iequals(it.key(), BBL_JSON_KEY_FILAMENT_LIST)) {
                 //get filament list
                 get_name_and_subpath(it, filament_subfiles);
+            }
+            else if (boost::iequals(it.key(), BBL_JSON_KEY_SLA_MATERIAL_LIST)) {
+                get_name_and_subpath(it, sla_material_subfiles);
             }
             else if (boost::iequals(it.key(), BBL_JSON_KEY_MACHINE_LIST)) {
                 //get machine list
@@ -4722,6 +4769,11 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_vendor_configs_
         machine_model_subfiles.clear();
         machine_subfiles.clear();
         process_subfiles.clear();
+        sla_process_subfiles.clear();
+
+        // LoadFilamentOnly is used by the FFF material update path. Do not
+        // silently add resin presets while that restricted mode is active.
+        sla_material_subfiles.clear();
     }
 
     //2) paste the machine model
@@ -5024,7 +5076,8 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_vendor_configs_
             loaded.alias = preset_name;
         else {
             loaded.alias = std::move(alias_name);
-            filaments.set_printer_hold_alias(loaded.alias, loaded);
+            if (presets_collection->type() == Preset::TYPE_FILAMENT)
+                filaments.set_printer_hold_alias(loaded.alias, loaded);
         }
         loaded.renamed_from = std::move(renamed_from);
         if (! substitution_context.empty())
@@ -5274,7 +5327,8 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_vendor_configs_
             loaded.alias = preset_name;
         else {
             loaded.alias = std::move(alias_name);
-            filaments.set_printer_hold_alias(loaded.alias, loaded);
+            if (presets_collection->type() == Preset::TYPE_FILAMENT)
+                filaments.set_printer_hold_alias(loaded.alias, loaded);
         }
         loaded.renamed_from = std::move(renamed_from);
         if (! substitution_context.empty())
@@ -5291,6 +5345,51 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_vendor_configs_
     std::map<std::string, DynamicPrintConfig> configs;
     std::map<std::string, std::string> filament_id_maps;
     std::map<std::string, std::string> description_maps;
+
+    // Resin profiles have their own configuration subsets. Loading them into
+    // the FFF collections silently drops SLA settings during validation.
+    auto load_profile_group = [&](PresetCollection &collection,
+                                  std::vector<std::pair<std::string, std::string>> &subfiles,
+                                  const char *profile_kind) {
+        presets = &collection;
+        configs.clear();
+        filament_id_maps.clear();
+#if PARALLEL_LOAD_PRESET
+        parallelLoadData.clear();
+        for (auto &subfile : subfiles) {
+            auto config_data = std::make_shared<ParallelPresetLoadData>();
+            config_data->context = std::make_shared<ConfigSubstitutionContext>(substitution_context.rule);
+            config_data->subfile = std::move(subfile);
+            parallelLoadData.emplace_back(std::move(config_data));
+        }
+        tbb::parallel_for(tbb::blocked_range<int>(0, parallelLoadData.size()), [this, &parallelLoadData, &vendor_name, &path](const tbb::blocked_range<int> &range) {
+            for (int i = range.begin(); i < range.end(); ++i) {
+                auto config_data = parallelLoadData[i];
+                const std::string subfile = path + "/" + vendor_name + "/" + config_data->subfile.second;
+                config_data->config_src.load_from_json(subfile, *config_data->context, false, config_data->key_values, config_data->reason);
+            }
+        });
+        for (const auto &load_data : parallelLoadData) {
+            const std::string reason = parse_config(load_data, substitution_context, substitutions, flags, load_data->subfile, configs,
+                                                    filament_id_maps, presets, presets_loaded, description_maps);
+            if (!reason.empty()) {
+                const std::string subfile_path = path + "/" + vendor_name + "/" + load_data->subfile.second;
+                BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << boost::format(", got error when parse %1% setting from %2%") % profile_kind % subfile_path;
+                throw ConfigurationError((boost::format("Failed loading configuration file %1%\nSuggest closing studio, deleting all files in %2%, and restarting studio") % subfile_path % path).str());
+            }
+        }
+#else
+        for (auto &subfile : subfiles) {
+            const std::string reason = parse_subfile(substitution_context, substitutions, flags, subfile, configs, filament_id_maps,
+                                                     presets, presets_loaded, description_maps);
+            if (!reason.empty()) {
+                const std::string subfile_path = path + "/" + vendor_name + "/" + subfile.second;
+                BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << boost::format(", got error when parse %1% setting from %2%") % profile_kind % subfile_path;
+                throw ConfigurationError((boost::format("Failed loading configuration file %1%\nSuggest closing studio, deleting all files in %2%, and restarting studio") % subfile_path % path).str());
+            }
+        }
+#endif
+    };
 
     //3.1) paste the process
     presets = &this->prints;
@@ -5336,6 +5435,8 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_vendor_configs_
     }
 #endif
 
+    load_profile_group(this->sla_prints, sla_process_subfiles, "SLA process");
+
     //3.2) paste the filaments
     presets = &this->filaments;
     configs.clear();
@@ -5379,6 +5480,9 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_vendor_configs_
         }
     }
 #endif
+
+    load_profile_group(this->sla_materials, sla_material_subfiles, "SLA material");
+
     //3.3) paste the printers
     presets = &this->printers;
     configs.clear();

@@ -1,0 +1,30 @@
+{
+    "name": "Generic Resin",
+    "version": "00.01.00.00",
+    "force_update": "0",
+    "description": "Calibration-only baseline for printers proven compatible with the SL1 archive format. It is not a universal MSLA profile; validate exposure and exported files with the printer and resin manufacturer before production use.",
+    "machine_model_list": [
+        {
+            "name": "Generic SL1-compatible MSLA 6.08in (Calibration)",
+            "sub_path": "machine/Generic MSLA 6.08in.json"
+        }
+    ],
+    "sla_process_list": [
+        {
+            "name": "0.05mm Standard @Generic SL1 MSLA",
+            "sub_path": "sla_process/0.05mm Standard @Generic MSLA.json"
+        }
+    ],
+    "sla_material_list": [
+        {
+            "name": "Generic Standard Resin @Generic SL1 MSLA",
+            "sub_path": "sla_material/Generic Standard Resin @Generic MSLA.json"
+        }
+    ],
+    "machine_list": [
+        {
+            "name": "Generic SL1-compatible MSLA 6.08in (Calibration)",
+            "sub_path": "machine/Generic MSLA 6.08in printer.json"
+        }
+    ]
+}
