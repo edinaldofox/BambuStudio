@@ -19600,7 +19600,7 @@ int Plater::new_project(bool skip_confirm, bool silent, const wxString &project_
             const auto preset_it = std::find_if(
                 preset_bundle.printers.begin(), preset_bundle.printers.end(),
                 [selected_technology](const Preset& preset) {
-                    return preset.is_visible && !preset.is_project_embedded &&
+                    return !preset.is_project_embedded &&
                            preset.printer_technology() == selected_technology;
                 });
 
@@ -19617,7 +19617,12 @@ int Plater::new_project(bool skip_confirm, bool silent, const wxString &project_
 
             AppConfig* app_config = wxGetApp().app_config;
             app_config->set("presets", PRESET_PRINTER_NAME, preset_it->name);
-            preset_bundle.load_presets(*app_config, ForwardCompatibilitySubstitutionRule::EnableSilent);
+            // Generic SLA presets are bundled with the application but are hidden
+            // until a printer is enabled in the Configuration Wizard. Selecting
+            // one here is an explicit user choice, so make that preset visible
+            // instead of rejecting the new project.
+            preset_bundle.printers.select_preset_by_name(preset_it->name, true, true);
+            preset_bundle.update_compatible(PresetSelectCompatibleType::Always);
             p->sidebar->obj_list()->unselect_objects();
             wxGetApp().load_current_presets(true);
         }
