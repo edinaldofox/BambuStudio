@@ -605,14 +605,12 @@ set(SLIC3R_GUI_SOURCES
     Utils/WxFontUtils.hpp
     Utils/EmbossStyleManager.cpp
     Utils/EmbossStyleManager.hpp
-    Utils/Http.cpp
     Utils/Http.hpp
     Utils/FixModelByWin10.cpp
     Utils/FixModelByWin10.hpp
     Utils/Bonjour.cpp
     Utils/Bonjour.hpp
     Utils/BBLUtil.hpp
-    Utils/BBLUtil.cpp
     Utils/FileHelp.cpp
     Utils/FileHelp.hpp
     Utils/PresetUpdater.cpp

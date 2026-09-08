@@ -169,7 +169,11 @@ namespace {
 
 	TagCheckResult tag_check_material(const std::string& tag)
 	{
-		if (const GUI::Tab* tab = wxGetApp().get_tab(Preset::Type::TYPE_FILAMENT)) {
+		const PrinterTechnology technology = wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology();
+		if (technology == ptFFF) {
+			const GUI::Tab* tab = wxGetApp().get_tab(Preset::Type::TYPE_FILAMENT);
+			if (!tab)
+				return TagCheckNotCompatible;
 			// search PrintConfig filament_type to find if allowed tag
 			if (wxGetApp().app_config->get("filament_type").find(tag)) {
 				const Preset& preset = tab->m_presets->get_edited_preset();
@@ -180,18 +184,15 @@ namespace {
 			}
 			return TagCheckNotCompatible;
 		}
-		/* TODO: SLA materials
-		else if (const GUI::Tab* tab = wxGetApp().get_tab(Preset::Type::TYPE_SLA_MATERIAL)) {
-			//if (wxGetApp().app_config->get("material_type").find(tag)) {
-				const Preset& preset = tab->m_presets->get_edited_preset();
-				const auto* opt = preset.config.opt<ConfigOptionStrings>("material_type");
-				if (opt->values[0] == tag)
-					return TagCheckAffirmative;
-				return TagCheckNegative;
-			//}
+
+		const GUI::Tab* tab = wxGetApp().get_tab(Preset::Type::TYPE_SLA_MATERIAL);
+		if (!tab)
 			return TagCheckNotCompatible;
-		}*/
-		return TagCheckNotCompatible;
+		const Preset& preset = tab->m_presets->get_edited_preset();
+		const auto* opt = preset.config.opt<ConfigOptionString>("material_type");
+		if (!opt)
+			return TagCheckNotCompatible;
+		return opt->value == tag ? TagCheckAffirmative : TagCheckNegative;
 	}
 
 	// return true if NOT in disabled mode.

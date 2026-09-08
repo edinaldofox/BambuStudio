@@ -1,4 +1,4 @@
-#include <catch_main.hpp>
+#include <catch2/catch.hpp>
 
 #include <libslic3r/PresetBundle.hpp>
 
@@ -9,6 +9,16 @@ namespace {
 constexpr const char *printer_name = "Generic SL1-compatible MSLA 6.08in (Calibration)";
 constexpr const char *print_name = "0.05mm Standard @Generic SL1 MSLA";
 constexpr const char *material_name = "Generic Standard Resin @Generic SL1 MSLA";
+
+TEST_CASE("SLA preset type names round-trip across local and cloud storage", "[SLA][Preset]")
+{
+    REQUIRE(Slic3r::Preset::get_iot_type_string(Slic3r::Preset::TYPE_SLA_PRINT) == "sla_process");
+    REQUIRE(Slic3r::Preset::get_iot_type_string(Slic3r::Preset::TYPE_SLA_MATERIAL) == "sla_material");
+    REQUIRE(Slic3r::Preset::get_type_from_string("sla_print") == Slic3r::Preset::TYPE_SLA_PRINT);
+    REQUIRE(Slic3r::Preset::get_type_from_string("sla_process") == Slic3r::Preset::TYPE_SLA_PRINT);
+    REQUIRE(Slic3r::Preset::get_type_from_string("sla_materials") == Slic3r::Preset::TYPE_SLA_MATERIAL);
+    REQUIRE(Slic3r::Preset::get_type_from_string("sla_material") == Slic3r::Preset::TYPE_SLA_MATERIAL);
+}
 
 TEST_CASE("GenericResin bundle loads as an SLA configuration", "[SLA][PresetBundle]")
 {
@@ -28,12 +38,12 @@ TEST_CASE("GenericResin bundle loads as an SLA configuration", "[SLA][PresetBund
     REQUIRE(bundle.sla_prints.select_preset_by_name(print_name, true));
     REQUIRE(bundle.sla_materials.select_preset_by_name(material_name, true));
 
-    const Slic3r::DynamicPrintConfig config = bundle.full_sla_config();
+    const Slic3r::DynamicPrintConfig config = bundle.full_config();
     REQUIRE(Slic3r::Preset::printer_technology(config) == Slic3r::ptSLA);
     REQUIRE(config.opt_string("sla_print_settings_id") == print_name);
     REQUIRE(config.opt_string("sla_material_settings_id") == material_name);
-    REQUIRE(config.opt_float("display_width") == Catch::Approx(133.0));
-    REQUIRE(config.opt_float("display_height") == Catch::Approx(75.0));
+    REQUIRE(config.opt_float("display_width") == Approx(133.0));
+    REQUIRE(config.opt_float("display_height") == Approx(75.0));
 
     Slic3r::AppConfig app_config;
     bundle.export_selections(app_config);

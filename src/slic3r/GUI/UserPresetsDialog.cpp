@@ -20,6 +20,8 @@ UserPresetsDialog::UserPresetsDialog(wxWindow *parent)
     m_tab_ctrl->AppendItem("");
     m_tab_ctrl->AppendItem("");
     m_tab_ctrl->AppendItem("");
+    m_tab_ctrl->AppendItem("");
+    m_tab_ctrl->AppendItem("");
     m_tab_ctrl->SelectItem(0);
     m_tab_ctrl->Bind(wxEVT_TAB_SEL_CHANGED, [this] (auto & evt) { on_collection_changed(evt.GetInt()); });
 
@@ -111,7 +113,8 @@ UserPresetsDialog::UserPresetsDialog(wxWindow *parent)
 void UserPresetsDialog::init_preset_list()
 {
     auto bundle = wxGetApp().preset_bundle;
-    for (PresetCollection *collection : {(PresetCollection *) &bundle->printers, &bundle->filaments, &bundle->prints}) {
+    for (PresetCollection *collection : {(PresetCollection *) &bundle->printers, &bundle->filaments, &bundle->prints,
+                                         &bundle->sla_materials, &bundle->sla_prints}) {
         std::vector<std::string> presets;
         for (auto &preset : *collection) {
             if (!preset.is_user()) continue;
@@ -416,8 +419,9 @@ void UserPresetsDialog::on_all_checked(bool checked, bool from_user)
 
 void UserPresetsDialog::update_preset_counts()
 {
-    wxString labels[] = {_L("Printer presets (%d)"), _L("Filament presets (%d)"), _L("Process presets (%d)")};
-    for (int i = 0; i < 3; ++i) {
+    wxString labels[] = {_L("Printer presets (%d)"), _L("Filament presets (%d)"), _L("Process presets (%d)"),
+                         _L("Material presets (%d)"), _L("SLA process presets (%d)")};
+    for (int i = 0; i < 5; ++i) {
         size_t n = i == 1 ? std::accumulate(m_filament_presets.begin(), m_filament_presets.end(), size_t(0),
             [](size_t t, auto &filament) { return t + filament.second.size(); }) : 0;
         if (m_preset_sizers.empty()) {
@@ -455,7 +459,7 @@ void UserPresetsDialog::update_checked()
 
 void UserPresetsDialog::delete_checked()
 {
-    if (!delete_presets(m_collection + 3, m_checked_presets)) // check only
+    if (!delete_presets(m_collection + 5, m_checked_presets)) // check only
         return;
 
     // Collect checked sizer of presets (need m_checked_presets, so do it befor delete_presets)
@@ -539,41 +543,49 @@ static void remove_both(std::vector<std::string> &l, std::vector<std::string> &r
 
 bool UserPresetsDialog::delete_confirm(int collection, int preset_num)
 {
-    wxString types[] = {_L("Printer"), _L("Filament"), _L("Process")};
+    wxString types[] = {_L("Printer"), _L("Filament"), _L("Process"), _L("Material"), _L("SLA Process")};
     DeleteConfirmDialog dlg(this, wxString(SLIC3R_APP_FULL_NAME) + " - " + _L("Delete"),
-                            wxString::Format(_L("%d %s Preset will be deleted."), preset_num, types[collection % 3]));
+                            wxString::Format(_L("%d %s Preset will be deleted."), preset_num, types[collection % 5]));
     int res = dlg.ShowModal();
     return res == wxID_OK;
 }
 
-bool UserPresetsDialog::delete_confirm(int collection, int filament_preset_num, int print_preset_num)
+bool UserPresetsDialog::delete_confirm(int collection, int filament_preset_num, int print_preset_num, int sla_material_preset_num, int sla_print_preset_num)
 {
     DeleteConfirmDialog
         dlg(this, wxString(SLIC3R_APP_FULL_NAME) + " - " + _L("Delete"),
-            wxString::Format(_L("%d Filament Preset and %d Process Preset is attached to this printer. Those presets would be deleted if the printer is deleted."),
-                             filament_preset_num, print_preset_num));
+            wxString::Format(_L("%d Filament, %d Process, %d SLA Material and %d SLA Process presets are attached to this printer. Those presets would be deleted if the printer is deleted."),
+                             filament_preset_num, print_preset_num, sla_material_preset_num, sla_print_preset_num));
     int res = dlg.ShowModal();
     return res == wxID_OK;
 }
 
 bool UserPresetsDialog::delete_presets(int collection, std::vector<std::string> &presets)
 {
-    Preset::Type types[] = {Preset::TYPE_PRINTER, Preset::TYPE_FILAMENT, Preset::TYPE_PRINT};
-    Tab *tab = wxGetApp().get_tab(types[collection % 3]);
+    constexpr int collection_count = 5;
+    const bool check_only = collection >= collection_count;
+    const int collection_index = collection % collection_count;
+    Preset::Type types[] = {Preset::TYPE_PRINTER, Preset::TYPE_FILAMENT, Preset::TYPE_PRINT,
+                            Preset::TYPE_SLA_MATERIAL, Preset::TYPE_SLA_PRINT};
+    Tab *tab = wxGetApp().get_tab(types[collection_index]);
     auto collection2 = tab->get_presets();
-    // Find attached filaments & print presets for custom printers and delete together
-    if (collection == 3) {
+    // Find attached FFF and SLA presets for custom printers and delete them together.
+    if (check_only && collection_index == 0) {
         auto filament_presets = std::make_shared<std::vector<std::string>>();
         auto print_presets = std::make_shared<std::vector<std::string>>();
+        auto sla_material_presets = std::make_shared<std::vector<std::string>>();
+        auto sla_print_presets = std::make_shared<std::vector<std::string>>();
         for (auto &preset : presets) {
             auto preset2 = collection2->find_preset(preset);
             if (!preset2->is_system && collection2->get_preset_base(*preset2) == preset2) { // Root printer preset
                 find_compatible_user_presets(wxGetApp().preset_bundle->filaments, preset, *filament_presets);
                 find_compatible_user_presets(wxGetApp().preset_bundle->prints, preset, *print_presets);
+                find_compatible_user_presets(wxGetApp().preset_bundle->sla_materials, preset, *sla_material_presets);
+                find_compatible_user_presets(wxGetApp().preset_bundle->sla_prints, preset, *sla_print_presets);
             }
         }
-        if (!filament_presets->empty() || !print_presets->empty()) {
-            if (!delete_confirm(collection, int(filament_presets->size()), int(print_presets->size())))
+        if (!filament_presets->empty() || !print_presets->empty() || !sla_material_presets->empty() || !sla_print_presets->empty()) {
+            if (!delete_confirm(collection, int(filament_presets->size()), int(print_presets->size()), int(sla_material_presets->size()), int(sla_print_presets->size())))
                 return false;
             // Remove filaments & print presets attached to current custom printer
             auto current = tab->get_presets()->get_edited_preset().name;
@@ -583,21 +595,29 @@ bool UserPresetsDialog::delete_presets(int collection, std::vector<std::string> 
                 if (!preset2->is_system && collection2->get_preset_base(*preset2) == preset2) {
                     std::vector<std::string> filament_presets2;
                     std::vector<std::string> print_presets2;
+                    std::vector<std::string> sla_material_presets2;
+                    std::vector<std::string> sla_print_presets2;
                     find_compatible_user_presets(wxGetApp().preset_bundle->filaments, current, filament_presets2);
                     find_compatible_user_presets(wxGetApp().preset_bundle->prints, current, print_presets2);
+                    find_compatible_user_presets(wxGetApp().preset_bundle->sla_materials, current, sla_material_presets2);
+                    find_compatible_user_presets(wxGetApp().preset_bundle->sla_prints, current, sla_print_presets2);
                     remove_both(*filament_presets, filament_presets2);
                     remove_both(*print_presets, print_presets2);
+                    remove_both(*sla_material_presets, sla_material_presets2);
+                    remove_both(*sla_print_presets, sla_print_presets2);
                 }
             }
-            CallAfter([this, filament_presets, print_presets] {
+            CallAfter([this, filament_presets, print_presets, sla_material_presets, sla_print_presets] {
                 delete_presets(1, *filament_presets);
                 delete_presets(2, *print_presets);
+                delete_presets(3, *sla_material_presets);
+                delete_presets(4, *sla_print_presets);
                 update_preset_counts();
             });
             return true;
         }
     }
-    if (collection >= 3) {
+    if (check_only) {
         return delete_confirm(collection, int(presets.size()));
     }
 

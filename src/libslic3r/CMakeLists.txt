@@ -276,6 +276,11 @@ set(lisbslic3r_sources
     ObjectID.hpp
     NSVGUtils.cpp
     NSVGUtils.hpp
+
+    ../slic3r/Utils/Http.cpp
+    ../slic3r/Utils/Http.hpp
+    ../slic3r/Utils/BBLUtil.cpp
+    ../slic3r/Utils/BBLUtil.hpp
 	ParameterUtils.cpp
     ParameterUtils.hpp
     PerimeterGenerator.cpp
@@ -512,7 +517,7 @@ endif ()
 add_library(libslic3r STATIC ${lisbslic3r_sources}
     "${CMAKE_CURRENT_BINARY_DIR}/libslic3r_version.h"
     ${OpenVDBUtils_SOURCES})
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${lisbslic3r_sources})
+source_group(TREE ${CMAKE_SOURCE_DIR}/src FILES ${lisbslic3r_sources})
 
 if (SLIC3R_STATIC)
     set(CGAL_Boost_USE_STATIC_LIBS ON CACHE BOOL "" FORCE)

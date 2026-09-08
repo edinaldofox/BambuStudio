@@ -1,3 +1,4 @@
+#define NANOSVG_IMPLEMENTATION
 #include "NSVGUtils.hpp"
 #include <array>
 #include <charconv> // to_chars

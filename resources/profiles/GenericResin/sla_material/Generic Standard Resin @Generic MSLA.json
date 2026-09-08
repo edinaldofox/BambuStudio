@@ -18,6 +18,6 @@
     "material_correction_y": "1",
     "material_correction_z": "1",
     "material_vendor": "Generic",
-    "material_print_speed": "50",
+    "material_print_speed": "fast",
     "compatible_printers": ["Generic SL1-compatible MSLA 6.08in (Calibration)"]
 }

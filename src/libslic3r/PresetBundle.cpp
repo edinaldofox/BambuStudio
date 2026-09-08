@@ -935,8 +935,8 @@ PresetsConfigSubstitutions PresetBundle::load_user_presets(std::string user, For
     fs::path    folder(user_folder / user);
     if (!fs::exists(folder)) fs::create_directory(folder);
 
-    // BBS do not load sla_print
-    // BBS: change directoties by design
+    // Each technology keeps independent process and material collections.
+    // Loading both here is what makes user-created SLA profiles survive restart.
     try {
         std::string print_selected_preset_name = prints.get_selected_preset().name;
         this->prints.load_presets(dir_user_presets, PRESET_PRINT_NAME, substitutions, substitution_rule);
@@ -945,9 +945,23 @@ PresetsConfigSubstitutions PresetBundle::load_user_presets(std::string user, For
         errors_cummulative += err.what();
     }
     try {
+        std::string sla_print_selected_preset_name = sla_prints.get_selected_preset().name;
+        this->sla_prints.load_presets(dir_user_presets, PRESET_SLA_PRINT_NAME, substitutions, substitution_rule);
+        sla_prints.select_preset_by_name(sla_print_selected_preset_name, false);
+    } catch (const std::runtime_error &err) {
+        errors_cummulative += err.what();
+    }
+    try {
         std::string filament_selected_preset_name = filaments.get_selected_preset().name;
         this->filaments.load_presets(dir_user_presets, PRESET_FILAMENT_NAME, substitutions, substitution_rule);
         filaments.select_preset_by_name(filament_selected_preset_name, false);
+    } catch (const std::runtime_error &err) {
+        errors_cummulative += err.what();
+    }
+    try {
+        std::string sla_material_selected_preset_name = sla_materials.get_selected_preset().name;
+        this->sla_materials.load_presets(dir_user_presets, PRESET_SLA_MATERIALS_NAME, substitutions, substitution_rule);
+        sla_materials.select_preset_by_name(sla_material_selected_preset_name, false);
     } catch (const std::runtime_error &err) {
         errors_cummulative += err.what();
     }
@@ -1002,19 +1016,28 @@ PresetsConfigSubstitutions PresetBundle::load_user_presets(AppConfig &          
         }
         try {
             PresetCollection *preset_collection = nullptr;
-            if (type_iter->second == PRESET_IOT_PRINT_TYPE) {
-                preset_collection = &(this->prints);
+            switch (Preset::get_type_from_string(type_iter->second)) {
+            case Preset::TYPE_PRINT:
+                preset_collection = &this->prints;
                 process_added |= preset_collection->load_user_preset(name, value_map, substitutions, substitution_rule);
-            }
-            else if (type_iter->second == PRESET_IOT_FILAMENT_TYPE) {
-                preset_collection = &(this->filaments);
+                break;
+            case Preset::TYPE_SLA_PRINT:
+                preset_collection = &this->sla_prints;
+                process_added |= preset_collection->load_user_preset(name, value_map, substitutions, substitution_rule);
+                break;
+            case Preset::TYPE_FILAMENT:
+                preset_collection = &this->filaments;
                 filament_added |= preset_collection->load_user_preset(name, value_map, substitutions, substitution_rule);
-            }
-            else if (type_iter->second == PRESET_IOT_PRINTER_TYPE) {
-                preset_collection = &(this->printers);
+                break;
+            case Preset::TYPE_SLA_MATERIAL:
+                preset_collection = &this->sla_materials;
+                filament_added |= preset_collection->load_user_preset(name, value_map, substitutions, substitution_rule);
+                break;
+            case Preset::TYPE_PRINTER:
+                preset_collection = &this->printers;
                 machine_added |= preset_collection->load_user_preset(name, value_map, substitutions, substitution_rule);
-            }
-            else {
+                break;
+            default:
                 BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format("invalid type %1% for setting %2%") %type_iter->second %name;
                 continue;
             }
@@ -1265,7 +1288,9 @@ void PresetBundle::save_user_presets(AppConfig& config, std::vector<std::string>
         fs::create_directory(folder);
 
     this->prints.save_user_presets(dir_user_presets, PRESET_PRINT_NAME, need_to_delete_list);
+    this->sla_prints.save_user_presets(dir_user_presets, PRESET_SLA_PRINT_NAME, need_to_delete_list);
     this->filaments.save_user_presets(dir_user_presets, PRESET_FILAMENT_NAME, need_to_delete_list);
+    this->sla_materials.save_user_presets(dir_user_presets, PRESET_SLA_MATERIALS_NAME, need_to_delete_list);
     this->printers.save_user_presets(dir_user_presets, PRESET_PRINTER_NAME, need_to_delete_list);
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(" finished");
 }
@@ -1287,7 +1312,9 @@ void PresetBundle::update_user_presets_directory(const std::string preset_folder
         fs::create_directory(folder);
 
     this->prints.update_user_presets_directory(dir_user_presets, PRESET_PRINT_NAME);
+    this->sla_prints.update_user_presets_directory(dir_user_presets, PRESET_SLA_PRINT_NAME);
     this->filaments.update_user_presets_directory(dir_user_presets, PRESET_FILAMENT_NAME);
+    this->sla_materials.update_user_presets_directory(dir_user_presets, PRESET_SLA_MATERIALS_NAME);
     this->printers.update_user_presets_directory(dir_user_presets, PRESET_PRINTER_NAME);
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(" finished");
 }
@@ -1320,16 +1347,13 @@ void PresetBundle::update_system_preset_setting_ids(std::map<std::string, std::m
             continue;
         }
         PresetCollection *preset_collection = nullptr;
-        if (type_iter->second == PRESET_IOT_PRINTER_TYPE) {
-            preset_collection = &(this->printers);
-        }
-        else if (type_iter->second == PRESET_IOT_PRINTER_TYPE) {
-            preset_collection = &(this->printers);
-        }
-        else if (type_iter->second == PRESET_IOT_PRINTER_TYPE) {
-            preset_collection = &(this->printers);
-        }
-        else {
+        switch (Preset::get_type_from_string(type_iter->second)) {
+        case Preset::TYPE_PRINT:        preset_collection = &this->prints; break;
+        case Preset::TYPE_SLA_PRINT:    preset_collection = &this->sla_prints; break;
+        case Preset::TYPE_FILAMENT:     preset_collection = &this->filaments; break;
+        case Preset::TYPE_SLA_MATERIAL: preset_collection = &this->sla_materials; break;
+        case Preset::TYPE_PRINTER:      preset_collection = &this->printers; break;
+        default:
             BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format("invalid type %1% for setting %2%") %type_iter->second %name;
             continue;
         }
@@ -1551,6 +1575,36 @@ void PresetBundle::remove_users_preset(AppConfig &config, std::map<std::string, 
     } else {
         filaments.select_preset_by_name(selected_filament_name, false);
     }
+
+    std::string selected_sla_print_name = sla_prints.get_selected_preset().name;
+    bool need_reset_sla_print_preset = false;
+    for (auto it = sla_prints.begin(); it != sla_prints.end();) {
+        if (it->is_user() && it->user_id.compare(preset_folder_user_id) == 0 && check_removed(*it)) {
+            need_reset_sla_print_preset |= it->name == selected_sla_print_name;
+            it = sla_prints.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    if (need_reset_sla_print_preset && printers.get_selected_preset().config.has("default_sla_print_profile"))
+        sla_prints.select_preset_by_name(printers.get_selected_preset().config.opt_string("default_sla_print_profile"), true);
+    else
+        sla_prints.select_preset_by_name(selected_sla_print_name, false);
+
+    std::string selected_sla_material_name = sla_materials.get_selected_preset().name;
+    bool need_reset_sla_material_preset = false;
+    for (auto it = sla_materials.begin(); it != sla_materials.end();) {
+        if (it->is_user() && it->user_id.compare(preset_folder_user_id) == 0 && check_removed(*it)) {
+            need_reset_sla_material_preset |= it->name == selected_sla_material_name;
+            it = sla_materials.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    if (need_reset_sla_material_preset && printers.get_selected_preset().config.has("default_sla_material_profile"))
+        sla_materials.select_preset_by_name(printers.get_selected_preset().config.opt_string("default_sla_material_profile"), true);
+    else
+        sla_materials.select_preset_by_name(selected_sla_material_name, false);
 
     update_compatible(PresetSelectCompatibleType::Always);
 

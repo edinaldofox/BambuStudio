@@ -1088,7 +1088,7 @@ void Tab::update_changed_ui()
     if (m_postpone_update_ui)
         return;
 
-    const bool deep_compare   = (m_type == Preset::TYPE_PRINTER || m_type == Preset::TYPE_PRINT || m_type == Preset::TYPE_FILAMENT
+    const bool deep_compare   = (m_type == Preset::TYPE_PRINTER || m_type == Preset::TYPE_PRINT || m_type == Preset::TYPE_SLA_PRINT || m_type == Preset::TYPE_FILAMENT
             || m_type == Preset::TYPE_SLA_MATERIAL || m_type == Preset::TYPE_MODEL);
     auto dirty_options = m_presets->current_dirty_options(deep_compare);
     auto nonsys_options = m_presets->current_different_from_parent_options(deep_compare);
@@ -1295,7 +1295,7 @@ void Tab::check_extruder_options_status(int index, bool &sys_extruder, bool &mod
                 auto status_iter = m_all_extruder_options_status.find(target_opt_key);
                 if (status_iter != m_all_extruder_options_status.end()) {
                     bool found_modified_for_this_config = false;
-                    const bool deep_compare = (m_type == Preset::TYPE_PRINTER || m_type == Preset::TYPE_PRINT || m_type == Preset::TYPE_FILAMENT || m_type == Preset::TYPE_SLA_MATERIAL ||
+                    const bool deep_compare = (m_type == Preset::TYPE_PRINTER || m_type == Preset::TYPE_PRINT || m_type == Preset::TYPE_SLA_PRINT || m_type == Preset::TYPE_FILAMENT || m_type == Preset::TYPE_SLA_MATERIAL ||
                                    m_type == Preset::TYPE_MODEL);
                     auto original_dirty_options = m_presets->current_dirty_options(deep_compare);
                     for (const std::string &orig_opt : original_dirty_options) {
@@ -6693,9 +6693,9 @@ bool Tab::select_preset(
             };
             std::vector<PresetUpdate> updates = {
                 { Preset::Type::TYPE_PRINT,         &m_preset_bundle->prints,       ptFFF },
-                //{ Preset::Type::TYPE_SLA_PRINT,     &m_preset_bundle->sla_prints,   ptSLA },
+                { Preset::Type::TYPE_SLA_PRINT,     &m_preset_bundle->sla_prints,   ptSLA },
                 { Preset::Type::TYPE_FILAMENT,      &m_preset_bundle->filaments,    ptFFF },
-                //{ Preset::Type::TYPE_SLA_MATERIAL,  &m_preset_bundle->sla_materials,ptSLA }
+                { Preset::Type::TYPE_SLA_MATERIAL,  &m_preset_bundle->sla_materials,ptSLA }
             };
             Preset *to_be_selected = m_presets->find_preset(preset_name, false, true);
             for (PresetUpdate &pu : updates) {
@@ -8715,6 +8715,58 @@ const ConfigOptionsGroupShp Page::get_optgroup(const wxString& title) const
 
 void TabSLAMaterial::build()
 {
+    m_presets = &m_preset_bundle->sla_materials;
+    m_compatible_prints.type = Preset::TYPE_SLA_PRINT;
+    load_initial_data();
+
+    auto page = add_options_page(L("Material"), "spool");
+    auto optgroup = page->new_optgroup(L("Material"));
+    optgroup->append_single_option_line("material_colour");
+    optgroup->append_single_option_line("bottle_cost");
+    optgroup->append_single_option_line("bottle_volume");
+    optgroup->append_single_option_line("bottle_weight");
+    optgroup->append_single_option_line("material_density");
+
+    optgroup->m_on_change = [this](t_config_option_key opt_key, boost::any value) {
+        if (opt_key == "material_colour") {
+            update_dirty();
+            on_value_change(opt_key, value);
+            return;
+        }
+        DynamicPrintConfig config = *m_config;
+        if (opt_key == "bottle_volume")
+            config.set_key_value("bottle_weight", new ConfigOptionFloat(boost::any_cast<double>(value) * config.option("material_density")->getFloat() / 1000));
+        else if (opt_key == "bottle_weight")
+            config.set_key_value("bottle_volume", new ConfigOptionFloat(boost::any_cast<double>(value) / config.option("material_density")->getFloat() * 1000));
+        else if (opt_key == "material_density")
+            config.set_key_value("bottle_volume", new ConfigOptionFloat(config.option("bottle_weight")->getFloat() / boost::any_cast<double>(value) * 1000));
+        load_config(config);
+        update_dirty();
+        on_value_change(opt_key, value);
+    };
+
+    optgroup = page->new_optgroup(L("Layers"));
+    optgroup->append_single_option_line("initial_layer_height");
+    optgroup = page->new_optgroup(L("Exposure"));
+    optgroup->append_single_option_line("exposure_time");
+    optgroup->append_single_option_line("initial_exposure_time");
+
+    page = add_options_page(L("Dependencies"), "advanced");
+    optgroup = page->new_optgroup(L("Profile dependencies"));
+    create_line_with_widget(optgroup.get(), "compatible_printers", "", [this](wxWindow* parent) { return compatible_widget_create(parent, m_compatible_printers); });
+    Option option = optgroup->get_option("compatible_printers_condition");
+    option.opt.full_width = true;
+    optgroup->append_single_option_line(option);
+    create_line_with_widget(optgroup.get(), "compatible_prints", "", [this](wxWindow* parent) { return compatible_widget_create(parent, m_compatible_prints); });
+    option = optgroup->get_option("compatible_prints_condition");
+    option.opt.full_width = true;
+    optgroup->append_single_option_line(option);
+    build_preset_description_line(optgroup.get());
+
+    page = add_options_page(L("Material printing profile"), "printer");
+    optgroup = page->new_optgroup(L("Material printing profile"));
+    optgroup->append_single_option_line("material_print_speed");
+
     //m_presets = &m_preset_bundle->sla_materials;
     //load_initial_data();
 
@@ -8839,6 +8891,53 @@ void TabSLAPrint::build()
 {
     m_presets = &m_preset_bundle->sla_prints;
     load_initial_data();
+
+    auto page = add_options_page(L("Quality"), "empty");
+    auto optgroup = page->new_optgroup(L("Layers"));
+    optgroup->append_single_option_line("layer_height");
+    optgroup->append_single_option_line("faded_layers");
+    optgroup->append_single_option_line("slice_closing_radius");
+
+    page = add_options_page(L("Supports"), "support");
+    optgroup = page->new_optgroup(L("Supports"));
+    optgroup->append_single_option_line("supports_enable");
+    optgroup->append_single_option_line("support_head_front_diameter");
+    optgroup->append_single_option_line("support_head_penetration");
+    optgroup->append_single_option_line("support_head_width");
+    optgroup->append_single_option_line("support_pillar_diameter");
+    optgroup->append_single_option_line("support_buildplate_only");
+    optgroup->append_single_option_line("support_critical_angle");
+    optgroup->append_single_option_line("support_object_elevation");
+    optgroup->append_single_option_line("support_points_density_relative");
+    optgroup->append_single_option_line("support_points_minimal_distance");
+
+    page = add_options_page(L("Pad"), "empty");
+    optgroup = page->new_optgroup(L("Pad"));
+    optgroup->append_single_option_line("pad_enable");
+    optgroup->append_single_option_line("pad_wall_thickness");
+    optgroup->append_single_option_line("pad_wall_height");
+    optgroup->append_single_option_line("pad_brim_size");
+
+    page = add_options_page(L("Hollowing"), "empty");
+    optgroup = page->new_optgroup(L("Hollowing"));
+    optgroup->append_single_option_line("hollowing_enable");
+    optgroup->append_single_option_line("hollowing_min_thickness");
+    optgroup->append_single_option_line("hollowing_quality");
+    optgroup->append_single_option_line("hollowing_closing_distance");
+
+    page = add_options_page(L("Output options"), "empty");
+    optgroup = page->new_optgroup(L("Output file"));
+    Option option = optgroup->get_option("filename_format");
+    option.opt.full_width = true;
+    optgroup->append_single_option_line(option);
+
+    page = add_options_page(L("Dependencies"), "advanced");
+    optgroup = page->new_optgroup(L("Profile dependencies"));
+    create_line_with_widget(optgroup.get(), "compatible_printers", "", [this](wxWindow* parent) { return compatible_widget_create(parent, m_compatible_printers); });
+    option = optgroup->get_option("compatible_printers_condition");
+    option.opt.full_width = true;
+    optgroup->append_single_option_line(option);
+    build_preset_description_line(optgroup.get());
 
 //    auto page = add_options_page(L("Layers and perimeters"), "layers");
 //

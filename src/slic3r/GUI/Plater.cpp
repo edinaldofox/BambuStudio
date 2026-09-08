@@ -3536,12 +3536,20 @@ void Sidebar::update_presets(Preset::Type preset_type)
         break;
         }
     case Preset::TYPE_SLA_PRINT:
-        ;// p->combo_sla_print->update();
+    {
+        Tab* print_tab = wxGetApp().get_tab(Preset::TYPE_SLA_PRINT);
+        if (print_tab && print_tab->get_combo_box())
+            print_tab->get_combo_box()->update();
         break;
+    }
 
     case Preset::TYPE_SLA_MATERIAL:
-        ;// p->combo_sla_material->update();
+    {
+        Tab* material_tab = wxGetApp().get_tab(Preset::TYPE_SLA_MATERIAL);
+        if (material_tab && material_tab->get_combo_box())
+            material_tab->get_combo_box()->update();
         break;
+    }
 
     case Preset::TYPE_PRINTER:
     {

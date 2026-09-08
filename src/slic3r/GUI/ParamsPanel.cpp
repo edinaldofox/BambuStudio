@@ -516,10 +516,17 @@ void ParamsPanel::rebuild_panels()
     refresh_tabs();
     free_sizers();
     create_layout();
+
+    Tab *current_tab = dynamic_cast<Tab*>(m_current_tab);
+    if (current_tab == nullptr || !current_tab->supports_printer_technology(wxGetApp().preset_bundle->printers.get_selected_preset().printer_technology()))
+        set_active_tab(m_tab_print ? m_tab_print : m_tab_filament);
 }
 
 void ParamsPanel::refresh_tabs()
 {
+    m_tab_print = nullptr;
+    m_tab_filament = nullptr;
+    m_tab_printer = nullptr;
     auto& tabs_list = wxGetApp().tabs_list;
     auto print_tech = wxGetApp().preset_bundle->printers.get_selected_preset().printer_technology();
     for (auto tab : tabs_list)
@@ -657,7 +664,9 @@ void ParamsPanel::set_active_tab(wxPanel* tab)
     }
     m_left_sizer->Layout();
     if (auto dialog = dynamic_cast<wxDialog*>(GetParent())) {
-        wxString title = cur_tab->type() == Preset::TYPE_FILAMENT ? _L("Filament settings") : _L("Printer settings");
+        wxString title = cur_tab->type() == Preset::TYPE_FILAMENT ? _L("Filament settings") :
+                         cur_tab->type() == Preset::TYPE_SLA_MATERIAL ? _L("Material settings") :
+                         cur_tab->type() == Preset::TYPE_SLA_PRINT ? _L("Process settings") : _L("Printer settings");
         dialog->SetTitle(title);
     }
 }

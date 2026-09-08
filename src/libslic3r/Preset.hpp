@@ -32,6 +32,8 @@
 #define PRESET_IOT_PRINTER_TYPE     "printer"
 #define PRESET_IOT_FILAMENT_TYPE    "filament"
 #define PRESET_IOT_PRINT_TYPE       "print"
+#define PRESET_IOT_SLA_PRINT_TYPE   "sla_process"
+#define PRESET_IOT_SLA_MATERIAL_TYPE "sla_material"
 
 
 //BBS: add json support

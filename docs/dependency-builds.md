@@ -104,3 +104,39 @@ Isso deixa a máquina do usuário final independente de Boost, TBB e CURL.
 Os SDKs do sistema listados acima ainda são exigidos apenas para compilar e
 empacotar o aplicativo; eles não devem ser uma dependência manual do usuário
 final.
+
+### Dependências de execução e pacote autocontido
+
+O artefato distribuído deve ser validado em uma instalação limpa. Não entregue
+o diretório de build: ele depende do prefixo local em `build/deps-*` e pode
+conter referências ao ambiente da máquina que compilou o aplicativo.
+
+Para os modos FFF e SLA, o pacote deve conter as bibliotecas produzidas em
+`deps/` e as dependências transitivas de `libslic3r`, incluindo Boost, TBB,
+CURL, OpenSSL, OpenVDB, CGAL e NanoSVG. Assim, importar um modelo, gerar
+suportes, hollowing, rasterizar e exportar um arquivo SLA não exige que o
+usuário instale SDKs ou bibliotecas de desenvolvimento.
+
+No Linux, as dependências de interface que normalmente permanecem do sistema
+são GTK, OpenGL/Mesa, WebKitGTK e D-Bus. A funcionalidade `bambu:///` e a
+visualização de vídeo requerem o **runtime** do GStreamer; os pacotes `-dev`
+do GStreamer são exclusivamente para compilação. AppImage e Flatpak devem
+incluir ou declarar essas dependências de runtime conforme a política do
+formato de distribuição. Um pacote `.deb` ou `.rpm` deve listá-las como
+dependências de instalação.
+
+Antes de publicar, execute esta lista de validação no artefato instalado:
+
+1. Inicie o aplicativo sem `CMAKE_PREFIX_PATH` nem variáveis de build.
+2. Selecione um perfil FFF, fatie e exporte G-code.
+3. Selecione um perfil SLA compatível, material e processo SLA; importe um
+   modelo, gere suportes/hollowing quando aplicável, fatie e exporte o arquivo
+   SLA.
+4. Teste a troca FFF ↔ SLA e a reabertura de um projeto de cada tecnologia.
+5. Se o produto oferecer integração Bambu, valide descoberta, streaming e
+   visualização de vídeo em uma instalação que tenha apenas as dependências de
+   runtime declaradas pelo pacote.
+
+Windows deve incluir DLLs ao lado do executável ou no instalador. No macOS,
+inclua frameworks e bibliotecas dentro de `BambuStudio.app`, corrija os caminhos
+de carregamento e assine/notarize o bundle após essa cópia.

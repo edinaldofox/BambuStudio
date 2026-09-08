@@ -4602,6 +4602,13 @@ void MainFrame::technology_changed()
         export_item->SetItemLabel(pt == ptSLA ? _L("Export SLA file") + dots : _L("Export G-code") + dots);
         export_item->SetHelp(pt == ptSLA ? _L("Export current plate as an SLA file") : _L("Export current plate as G-code"));
     }
+
+    // The parameter panes own separate FFF and SLA profile tabs. Rebuild them
+    // whenever technology changes so the visible controls match the printer.
+    if (m_param_panel != nullptr)
+        m_param_panel->rebuild_panels();
+    if (m_param_dialog != nullptr)
+        m_param_dialog->panel()->rebuild_panels();
 }
 
 

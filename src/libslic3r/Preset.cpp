@@ -506,6 +506,10 @@ std::string  Preset::get_type_string(Preset::Type type)
             return PRESET_FILAMENT_NAME;
         case Preset::Type::TYPE_PRINT:
             return PRESET_PRINT_NAME;
+        case Preset::Type::TYPE_SLA_PRINT:
+            return PRESET_IOT_SLA_PRINT_TYPE;
+        case Preset::Type::TYPE_SLA_MATERIAL:
+            return PRESET_IOT_SLA_MATERIAL_TYPE;
         case Preset::Type::TYPE_PRINTER:
             return PRESET_PRINTER_NAME;
         case Preset::Type::TYPE_PHYSICAL_PRINTER:
@@ -524,6 +528,10 @@ std::string  Preset::get_iot_type_string(Preset::Type type)
         return PRESET_IOT_FILAMENT_TYPE;
     case Preset::Type::TYPE_PRINT:
         return PRESET_IOT_PRINT_TYPE;
+    case Preset::Type::TYPE_SLA_PRINT:
+        return PRESET_IOT_SLA_PRINT_TYPE;
+    case Preset::Type::TYPE_SLA_MATERIAL:
+        return PRESET_IOT_SLA_MATERIAL_TYPE;
     case Preset::Type::TYPE_PRINTER:
         return PRESET_IOT_PRINTER_TYPE;
 
@@ -537,8 +545,12 @@ Preset::Type Preset::get_type_from_string(std::string type_str)
 {
     if (type_str.compare(PRESET_PRINT_NAME) == 0 || type_str.compare(PRESET_IOT_PRINT_TYPE) == 0)
         return Preset::Type::TYPE_PRINT;
+    else if (type_str.compare(PRESET_SLA_PRINT_NAME) == 0 || type_str.compare(PRESET_IOT_SLA_PRINT_TYPE) == 0)
+        return Preset::Type::TYPE_SLA_PRINT;
     else if (type_str.compare(PRESET_FILAMENT_NAME) == 0 || type_str.compare(PRESET_IOT_FILAMENT_TYPE) == 0)
         return Preset::Type::TYPE_FILAMENT;
+    else if (type_str.compare(PRESET_SLA_MATERIALS_NAME) == 0 || type_str.compare(PRESET_IOT_SLA_MATERIAL_TYPE) == 0)
+        return Preset::Type::TYPE_SLA_MATERIAL;
     else if (type_str.compare(PRESET_PRINTER_NAME) == 0 || type_str.compare(PRESET_IOT_PRINTER_TYPE) == 0)
         return Preset::Type::TYPE_PRINTER;
     else
@@ -3424,8 +3436,8 @@ std::string PresetCollection::name() const
     switch (this->type()) {
     case Preset::TYPE_PRINT:        return L(PRESET_PRINT_NAME);
     case Preset::TYPE_FILAMENT:     return L(PRESET_FILAMENT_NAME);
-    //case Preset::TYPE_SLA_PRINT:    return L("SLA print");
-    //case Preset::TYPE_SLA_MATERIAL: return L("SLA material");
+    case Preset::TYPE_SLA_PRINT:    return L("SLA print");
+    case Preset::TYPE_SLA_MATERIAL: return L("SLA material");
     case Preset::TYPE_PRINTER:      return L(PRESET_PRINTER_NAME);
     default:                        return "invalid";
     }
@@ -3437,8 +3449,8 @@ std::string PresetCollection::section_name() const
     switch (this->type()) {
     case Preset::TYPE_PRINT:        return PRESET_PRINT_NAME;
     case Preset::TYPE_FILAMENT:     return PRESET_FILAMENT_NAME;
-    //case Preset::TYPE_SLA_PRINT:    return PRESET_SLA_PRINT_NAME;
-    //case Preset::TYPE_SLA_MATERIAL: return PRESET_SLA_MATERIALS_NAME;
+    case Preset::TYPE_SLA_PRINT:    return PRESET_SLA_PRINT_NAME;
+    case Preset::TYPE_SLA_MATERIAL: return PRESET_SLA_MATERIALS_NAME;
     case Preset::TYPE_PRINTER:      return PRESET_PRINTER_NAME;
     default:                        return "invalid";
     }

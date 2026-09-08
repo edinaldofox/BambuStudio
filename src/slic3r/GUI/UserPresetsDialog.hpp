@@ -55,7 +55,7 @@ private:
 
     bool delete_confirm(int collection, int preset_num);
     
-    bool delete_confirm(int collection, int filament_preset_num, int print_preset_num);
+    bool delete_confirm(int collection, int filament_preset_num, int print_preset_num, int sla_material_preset_num, int sla_print_preset_num);
 
     void on_dpi_changed(const wxRect &suggested_rect) override;
 

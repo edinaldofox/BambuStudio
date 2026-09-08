@@ -370,9 +370,9 @@ void show_substitutions_info(const PresetsConfigSubstitutions& presets_config_su
 	auto preset_type_name = [](Preset::Type type) {
 		switch (type) {
 			case Preset::TYPE_PRINT:			return _L("Process");
-			// BBS: remove TYPE_SLA_PRINT
+			case Preset::TYPE_SLA_PRINT:		return _L("SLA Process");
 			case Preset::TYPE_FILAMENT:			return _L("Filament");
-			// BBS: remove TYPE_SLA_MATERIAL
+			case Preset::TYPE_SLA_MATERIAL:	return _L("SLA Material");
 			case Preset::TYPE_PRINTER: 			return _L("Machine");
 			// BBS: remove TYPE_PHYSICAL_PRINTER
 			default: assert(false);				return wxString();
