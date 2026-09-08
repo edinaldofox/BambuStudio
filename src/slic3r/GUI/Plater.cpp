@@ -19576,6 +19576,53 @@ int Plater::new_project(bool skip_confirm, bool silent, const wxString &project_
     if (!skip_confirm && (result = close_with_confirm(check)) == wxID_CANCEL)
         return wxID_CANCEL;
 
+    // A blank project is not tied to the technology of the previous project.
+    // Ask explicitly when it is created from the UI, then load a compatible
+    // printer preset before clearing the current project data.
+    if (!silent && project_name.empty()) {
+        MessageDialog technology_dialog(
+            this,
+            _L("Which material type would you like to use for this new project?"),
+            _L("New project"), wxYES_NO | wxCANCEL | wxICON_QUESTION);
+        technology_dialog.SetButtonLabel(wxID_YES, _L("Filament (FFF)"));
+        technology_dialog.SetButtonLabel(wxID_NO, _L("Resin (SLA)"));
+        technology_dialog.SetButtonLabel(wxID_CANCEL, _L("Cancel"));
+
+        const int technology_answer = technology_dialog.ShowModal();
+        if (technology_answer == wxID_CANCEL)
+            return wxID_CANCEL;
+
+        const PrinterTechnology selected_technology =
+            technology_answer == wxID_YES ? ptFFF : ptSLA;
+        PresetBundle& preset_bundle = *wxGetApp().preset_bundle;
+
+        if (preset_bundle.printers.get_selected_preset().printer_technology() != selected_technology) {
+            const auto preset_it = std::find_if(
+                preset_bundle.printers.begin(), preset_bundle.printers.end(),
+                [selected_technology](const Preset& preset) {
+                    return preset.is_visible && !preset.is_project_embedded &&
+                           preset.printer_technology() == selected_technology;
+                });
+
+            if (preset_it == preset_bundle.printers.end()) {
+                MessageDialog no_preset_dialog(
+                    this,
+                    selected_technology == ptSLA ?
+                        _L("No resin printer profile is available. Enable one in the Configuration Wizard first.") :
+                        _L("No filament printer profile is available. Enable one in the Configuration Wizard first."),
+                    _L("New project"), wxOK | wxICON_WARNING);
+                no_preset_dialog.ShowModal();
+                return wxID_CANCEL;
+            }
+
+            AppConfig* app_config = wxGetApp().app_config;
+            app_config->set("presets", PRESET_PRINTER_NAME, preset_it->name);
+            preset_bundle.load_presets(*app_config, ForwardCompatibilitySubstitutionRule::EnableSilent);
+            p->sidebar->obj_list()->unselect_objects();
+            wxGetApp().load_current_presets(true);
+        }
+    }
+
     if (auto *assemble_canvas = get_assmeble_canvas3D()) {
         assemble_canvas->new_project_clear_assembly_steps_tree_view(true);
     }
